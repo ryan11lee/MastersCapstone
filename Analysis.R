@@ -26,6 +26,7 @@
 # install.packages("pastecs")
 # install.packages("library(scales)
 # install.packages(janitor)
+# install.packages("corrr")
 
 
 library(pastecs)
@@ -46,6 +47,7 @@ library(lattice)
 library(woeBinning)
 library(blorr)
 library(MASS)
+library(corrr)
 library(xgboost)
 library(woeBinning)
 library(reshape2)
@@ -271,67 +273,44 @@ raw.data.summary %>%
 #################################################
 # Summary Stat Graphics
 #################################################
-names(rf.train.data.2)
 
-as.data.frame(rf.train.data.2[,-14])
+pca.data <- as.data.frame(raw.data[,1:25])
 
 
-pca.data <- as.data.frame(rf.train.data.2[,-14])
 pca <- prcomp(pca.data, center=TRUE, scale=TRUE)
-
-pca2.data <- raw.data %>% 
-  subset(train==1) %>% 
-  subset(select = -c(u, ID,train,test,validate,data.group, DEFAULT))
-
-pca2.data <- raw.data %>% 
-  subset(train==1) %>% 
-  subset(select = -c(u, ID,train,test,validate,data.group, DEFAULT))
-pca2 <- prcomp(pca2.data, center=TRUE, scale=TRUE)
-
-pca3.data <- rf.train.data.3 %>% 
-  subset(select = -c(predicted, DEFAULT))
-pca3 <- prcomp(pca3.data, center=TRUE)
-
 plot(pca)
+
+
+
+pca.data2 <- pca.data %>% 
+  dplyr::select(-c("DEFAULT","ID"))
+
+pca2 <- prcomp(pca.data2, center=TRUE,scale=TRUE)
+plot(pca2)
+
+
 component <- pca2$x
 component <- as.data.frame(component)
 ggplot(component, aes(x=component$PC1,y=component$PC2, color = as_factor(raw.data$DEFAULT))) +
   geom_point()
 
-component <- pca2$x
-component <- as.data.frame(component)
-ggplot(component, aes(x=component$PC1,y=component$PC2, color = as_factor(train.data$DEFAULT))) +
-  geom_point()
+factoextra::fviz_pca_biplot(pca2)
 
-component <- pca3$x
-component <- as.data.frame(component)
-ggplot(component, aes(x=component$PC1,y=component$PC2, color = as_factor(train.data$DEFAULT))) +
-  geom_point()
+# we see that many of the features are correlated in groups pay, bill_amt, pay_amt, with other parameters having small effect on dime and dim 2
 
-pca3.data <- nrows  (names(pca3.data))
-row.names(cqomponent) <- pca3.data.
 
-library(factoextra)
-
-fviz_pca_ind(pca3,
-             col.ind = "cos2", # Color by the quality of representation
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-)
 #################################################
 # Feature Engineering
 #################################################
 
-
+names(data[,33:37])
 data <- raw.data %>% 
   mutate(EDUCATION =ifelse(EDUCATION > 4,4,EDUCATION)) %>% 
   #mutate(SEX = SEX-1) %>% 
   mutate(MARRIAGE = ifelse(MARRIAGE ==0,3, MARRIAGE)) %>% 
   rename(PAY_1 = PAY_0) %>% 
-  mutate(avg_bill_amt = rowMeans(select(.,BILL_AMT1,BILL_AMT2,BILL_AMT3,
-                                        BILL_AMT4,BILL_AMT5,BILL_AMT6))) %>% 
-  mutate(avg_payment_amt = rowMeans(select(., PAY_AMT1,PAY_AMT2,PAY_AMT3,
-                                           PAY_AMT4,PAY_AMT5,PAY_AMT6))) %>%
+  mutate(avg_bill_amt = rowMeans(raw.data[,13:18])) %>% 
+  mutate(avg_payment_amt = rowMeans(raw.data[,19:24])) %>%
   mutate(payment_ratio_1 = ifelse(PAY_AMT1 == 0,100,BILL_AMT2/PAY_AMT1)) %>% 
   mutate(payment_ratio_2 = ifelse(PAY_AMT2 == 0,100,BILL_AMT3/PAY_AMT2)) %>% 
   mutate(payment_ratio_3 = ifelse(PAY_AMT3 == 0,100,BILL_AMT4/PAY_AMT3)) %>% 
@@ -339,7 +318,7 @@ data <- raw.data %>%
   mutate(payment_ratio_5 = ifelse(PAY_AMT5 == 0,100,BILL_AMT6/PAY_AMT5)) %>% 
   mutate(avg_payment_ratio = 
            rowMeans(
-             select(., payment_ratio_1,payment_ratio_2,
+             dplyr::select(., payment_ratio_1,payment_ratio_2,
                     payment_ratio_3,payment_ratio_4,
                     payment_ratio_5))) %>% 
   mutate(utilization_1 = BILL_AMT1/LIMIT_BAL*100) %>% 
@@ -350,7 +329,7 @@ data <- raw.data %>%
   mutate(utilization_6 = BILL_AMT6/LIMIT_BAL*100) %>% 
   mutate(average_utilization = 
            rowMeans(
-             select(., utilization_1,utilization_2,
+            dplyr::select(., utilization_1,utilization_2,
                     utilization_3,utilization_4,
                     utilization_5,utilization_6))) %>% 
   mutate(balance_paid_1 = BILL_AMT2-PAY_AMT1) %>% 
@@ -360,7 +339,7 @@ data <- raw.data %>%
   mutate(balance_paid_5 = BILL_AMT6-PAY_AMT5) %>% 
   mutate(avg_balance_paid = 
            rowMeans(
-             select(., balance_paid_1,balance_paid_2,
+             dplyr::select(., balance_paid_1,balance_paid_2,
                     balance_paid_3,balance_paid_4,
                     balance_paid_5))) %>%
   mutate(bal_growth_6mo = (LIMIT_BAL-BILL_AMT6)-
@@ -372,7 +351,7 @@ data <- raw.data %>%
   mutate(max_pmt_amt = pmax(PAY_AMT1, 
                             PAY_AMT2, PAY_AMT3, PAY_AMT4,
                             PAY_AMT5, PAY_AMT6)) %>%  
-  mutate(sum_PayX_vars =rowSums(select(.,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6))) %>% 
+  mutate(sum_PayX_vars =rowSums(raw.data[,7:12])) %>% 
   mutate_at(vars(PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6), 
             ~ replace(., . %in% -1:-2,0)) %>% 
   mutate(max_DLQ= pmax(PAY_1, PAY_2, PAY_3, PAY_4,PAY_5, PAY_6)) %>% 
@@ -381,23 +360,25 @@ data <- raw.data %>%
   #mutate(age_bin_26_and_35 = ifelse(AGE >= 26 & AGE<=35,1,0)) %>% 
   #mutate(age_bin_36_and_45 = ifelse(AGE >= 36 & AGE<=45,1,0)) %>% 
  # mutate(age_bin_greater_45 = ifelse(AGE >= 45,1,0)) %>% 
-  mutate(sum_pay_AMT = rowSums(select(.,PAY_AMT1,PAY_AMT2,
+  mutate(sum_pay_AMT = rowSums(dplyr::select(.,PAY_AMT1,PAY_AMT2,
                                       PAY_AMT3,PAY_AMT4,
                                       PAY_AMT5,PAY_AMT6))) %>%
-  mutate(sum_bill_AMT= rowSums(select(.,BILL_AMT1,BILL_AMT2,
+  mutate(sum_bill_AMT= rowSums(dplyr::select(.,BILL_AMT1,BILL_AMT2,
                                       BILL_AMT3,BILL_AMT4,
                                       BILL_AMT5,BILL_AMT6)))
 
-library(corrr)
-
-
-  names(data)
+###############
+#Correlation Plot and Frame
+###############
   continous <- subset(data, select= c("LIMIT_BAL","SEX","AGE","max_pmt_amt","max_DLQ",
                       "max_bill_amt","bal_growth_6mo","avg_balance_paid",
                       "avg_payment_ratio", "average_utilization","avg_payment_amt",
                       "avg_bill_amt","DEFAULT"))
   data.cor = cor(continous, method = c("spearman"))
+  
   corrplot(data.cor, type = "lower", tl.col = "black", tl.srt = 45)
+  
+  
   continuous.correlation <- as.data.frame(data.cor)
   continuous.correlation$DEFAULT
   rownames(continuous.correlation)
@@ -409,15 +390,18 @@ library(corrr)
     mutate_at(vars(CorrelationToDefault), as.numeric) %>% 
     mutate(order = abs(CorrelationToDefault)) %>% 
     arrange(desc(order)) %>% 
-    select(- order) %>% 
+    dplyr::select(-order) %>% 
     gt()
   
+  
+  ########
+  # Bin Data
+  ########
   data <-data %>% 
-    mutate(max_pmt_bin = ifelse(max_pmt_amt <= 4500, "                           <=4500",
+    mutate(max_pmt_bin = ifelse(max_pmt_amt <= 4500, "<=4500",
                                 ifelse(max_pmt_amt > 4500 & max_pmt_amt <= 36399.6, 
                                        "max_pmt_amt > 4500 & max_pmt_amt <= 36399.6",
-                                       ifelse(max_pmt_amt > 36399.6,
-                                              "                           >36399",data$max_pmt_amt))))
+                                       ifelse(max_pmt_amt > 36399.6,">36399",data$max_pmt_amt))))
   
   
   
@@ -435,25 +419,8 @@ library(corrr)
   gt(tukey_hsd(myaov))
   
   
-  data.bin.corr.df <- data %>% 
-    #subset(select=-c(max_pmt_bin)) %>% 
-    subset(select= reg.vars.clean)
   
-  
-  names(data)
-  data.cor.bin = cor(data.bin.corr.df, method = c("spearman"))
-  corrplot(data.cor.bin, type = "lower", tl.col = "black", tl.srt = 45)
-  data.bin.corr.df<- as.data.frame(data.cor.bin)
-  Analysis <- rownames(data.cor.bin.df)
-  data.cor.bin.df <- cbind(Analysis,data.bin.corr.df$DEFAULT) 
-  colnames(data.cor.bin.df) <- c("Analaysis","DEFAULT")
-  data.cor.bin.df <- as.data.frame(data.cor.bin.df)
-  
-  write_csv((data.cor.bin.df %>%  arrange(desc(DEFAULT))),"woecorr.csv")
-  data.cor.bin.df <- read_csv("../python/woecorr.csv")
-  
-  gt(data.cor.bin.df %>%  arrange(desc(DEFAULT)))
-s#####################################################################
+#####################################################################
 # WOE binning;
 #####################################################################
 
@@ -624,77 +591,11 @@ woe.bin.custom <- function(targetVar, predVar, df) {
 
 for (var in names(woe.data)) {
   woe.bin.custom("DEFAULT",var,woe.data)
-  
+
 }
 
 woe.bin.custom("DEFAULT","bal_growth_6mo",woe.data)
-# data <- data %>% 
-#   mutate(LIMIT_BAL_Less30000  = ifelse(LIMIT_BAL <= 30000,1,0)) %>% 
-#   mutate(LIMIT_BAL_between30000and160000 = ifelse(LIMIT_BAL > 30000 & LIMIT_BAL< 160000,1,0)) %>% 
-#   mutate(LIMIT_BAL_Greater160000 = ifelse(LIMIT_BAL >= 160000,1,0)) %>% 
-#   mutate(SEX_lessthanorEqual1 = ifelse(SEX <= 1,1,0)) %>% 
-#   mutate(SEX_greater1 = ifelse(SEX > 1,1,0)) %>% 
-#   mutate(EDUCATION_lessthanorEqual1 = ifelse(EDUCATION <= 1,1,0)) %>% 
-#   mutate(EDUCATION_lessthanorEqual3 = ifelse(EDUCATION > 1 & EDUCATION <= 3,1,0)) %>% 
-#   mutate(EDUCATION_greater3 = ifelse(EDUCATION > 3,1,0)) %>% 
-#   mutate(Marriage_lesthanorqualto1 = ifelse(MARRIAGE <= 1,1,0)) %>% 
-#   mutate(Marriage_greaterthan1 = ifelse(MARRIAGE>1,1,0)) %>% 
-#   mutate(age_bin_Less_25 = ifelse(AGE <= 25,1,0)) %>% 
-#   mutate(age_bin_26_and_35 = ifelse(AGE > 25 & AGE<=35,1,0)) %>% 
-#   mutate(age_bin_36_and_45 = ifelse(AGE > 35 & AGE<=45,1,0)) %>% 
-#   mutate(age_bin_greater_45 = ifelse(AGE > 45,1,0)) %>% 
-#   mutate(avg_bill_amt_lessthan0 = ifelse(avg_bill_amt <=0,1,0)) %>% 
-#   mutate(avg_bill_amt_0to1159 = ifelse(avg_bill_amt >0  & LIMIT_BAL<= 1159.42833,1,0)) %>% 
-#   mutate(avg_bill_amt_1159to7878 = ifelse(avg_bill_amt >1159.42833  & LIMIT_BAL<= 7878.448333,1,0)) %>%  
-#   mutate(avg_bill_amt_7878to49419 = ifelse(avg_bill_amt >7878.448333  & LIMIT_BAL<= 49419.44,1,0)) %>%  
-#   mutate(avg_bill_amt_greaterThan49419 = ifelse(avg_bill_amt >49419.44,1,0)) %>%  
-#   mutate(avg_pymt_amt_lessthan2045 = ifelse(avg_payment_amt <=2475.33,1,0)) %>% 
-#   mutate(avg_pymt_amt_2475to12935 = ifelse(avg_payment_amt >2475.33  & LIMIT_BAL<= 12935.46833,1,0)) %>%  
-#   mutate(avg_pymt_amt_greaterThan12935 = ifelse(avg_payment_amt >12935.46833,1,0)) %>%  
-#   mutate(avg_payment_ratio_lessthan13 = ifelse(avg_payment_ratio <=13.14667259,1,0)) %>%  
-#   mutate(avg_payment_ratio_13to28 = ifelse(avg_payment_ratio >13.14667259 & 
-#                                              avg_payment_ratio<=28.28176359,1,0)) %>%  
-#   mutate(avg_payment_ratio_greaterThan28 = ifelse(avg_payment_ratio >28.28176359,1,0)) %>%  
-#   mutate(avg_util_lessthan.10 = ifelse(average_utilization <=0.1019933333,1,0)) %>% 
-#   mutate(avg_util_.1to45 = ifelse(average_utilization > 0.1019933333 &
-#                                     average_utilization <=45.17598519,1,0)) %>% 
-#   mutate(avg_util_greaterthan45 = ifelse(average_utilization < 45.17598519,1,0)) %>% 
-#   mutate(avg_balance_paid_lessthanNeg1 = ifelse(avg_balance_paid <=-1,1,0)) %>% 
-#   mutate(avg_balance_paid_neg1to48976 = ifelse(avg_balance_paid > -1 &
-#                                      avg_balance_paid <48976.35,1,0)) %>% 
-#   
-#   mutate(avg_balance_paid_greaterThan48976 = ifelse(avg_balance_paid <= 48976.35,1,0)) %>% 
-#   mutate(bal_growth_6mo_lessthaNeg11546 = ifelse(avg_balance_paid <= -11546,1,0)) %>%
-#   mutate(bal_growth_6mo_neg11546to740 = ifelse(avg_balance_paid >-11546 & avg_balance_paid <= 740,1,0)) %>%
-#   mutate(bal_growth_6mo_greaterThan740 = ifelse(avg_balance_paid > 740,1,0)) %>%
-#   mutate(util_growth_6mo_lessthanNeg34.244 = ifelse(util_growth_6mo <= -31.24454, 1, 0)) %>% 
-#   mutate(util_growth_6mo_Neg34.244toNeg0.0832 = ifelse(util_growth_6mo > -31.24454 & 
-#                                                     util_growth_6mo <= -0.08321794872, 1, 0)) %>% 
-#   mutate(util_growth_6mo_Neg0.0832To0 = ifelse(util_growth_6mo > -0.08321794872 & 
-#                                                          util_growth_6mo <= -0, 1, 0)) %>%
-#   mutate(util_growth_6mo_0to4 = ifelse(util_growth_6mo > 0 & 
-#                                                  util_growth_6mo <= 4.037, 1, 0)) %>%
-#   mutate(util_growth_6mo_4to24 = ifelse(util_growth_6mo > 4.037 & 
-#                                          util_growth_6mo <= 24.1906, 1, 0)) %>%
-#   mutate(util_growth_6mo_greaterthan = ifelse(util_growth_6mo > 24.1906,1,0)) %>%
-#   mutate(max_bill_amt_lessthan0 = ifelse(max_bill_amt<= 0, 1, 0)) %>% 
-#   mutate(max_bill_amt_0to3058 = ifelse(max_bill_amt > 0 & max_bill_amt <= 3058.87, 1, 0)) %>% 
-#   mutate(max_bill_amt_3058to52496 = ifelse(max_bill_amt > 3058.87 &
-#                                               max_bill_amt <= 52496.15, 1, 0)) %>% 
-#   mutate(max_bill_amt_greaterthan52496 = ifelse(max_bill_amt > 52496.15, 1, 0)) %>% 
-#   mutate(max_pmt_amt_lessthan4790 = ifelse(max_pmt_amt <= 4790, 1, 0)) %>% 
-#   mutate(max_pmt_amt_4790to19000 = ifelse(max_pmt_amt > 4790 & max_pmt_amt <= 19000, 1, 0)) %>% 
-#   mutate(max_pmt_amt_greaterthan19000 = ifelse(max_pmt_amt > 19000, 1, 0)) %>% 
-#   mutate(max_DLQ_lessthan1 = ifelse(max_pmt_amt <= 1, 1, 0)) %>% 
-#   mutate(max_DLQ_greaterthan1 = ifelse(max_pmt_amt > 1, 1, 0)) %>% 
-#   mutate(sum_pay_AMT_lessthan14851 = ifelse(sum_pay_AMT <= 14851.98, 1, 0)) %>% 
-#   mutate(sum_pay_AMT_14851to77612 = ifelse(sum_pay_AMT > 14851.98 & sum_pay_AMT <= 77612.81, 1, 0)) %>% 
-#   mutate(sum_pay_AMT_greaterthan77612 = ifelse(sum_pay_AMT > 77612.81, 1, 0)) %>% 
-#   mutate(sum_bill_AMT_lessthan0 = ifelse(sum_pay_AMT <= 0, 1, 0)) %>% 
-#   mutate(sum_bill_AMT_0to6956 = ifelse(sum_pay_AMT > 0 & sum_pay_AMT <= 6956.57, 1, 0)) %>% 
-#   mutate(sum_bill_AMT_6956to472701 = ifelse(sum_pay_AMT > 6956.57 & sum_pay_AMT <= 47270.69, 1, 0)) %>% 
-#   mutate(sum_bill_AMT_472701 = ifelse(sum_pay_AMT > 47270.69 & sum_pay_AMT <= 296516.64, 1, 0)) %>% 
-#   mutate(sum_bill_AMT_greaterthan296516 = ifelse(sum_pay_AMT > 296516.64, 1, 0))
+
 before.woe <- data
 data <- data %>% 
   mutate(LIMIT_BAL_Less30000  = ifelse(LIMIT_BAL <= 30000,1,0)) %>% 
@@ -767,14 +668,13 @@ data <- data %>%
   mutate(sum_bill_AMT_71169.56to430875 = ifelse(sum_pay_AMT > 71169.56 & sum_pay_AMT <= 430875, 1, 0)) %>% 
   mutate(sum_bill_AMT_430875to1814836.92 = ifelse(sum_pay_AMT > 430875 & sum_pay_AMT <= 1814836.92, 1, 0)) %>% 
   mutate(sum_bill_AMT_greaterthan1814836.926 = ifelse(sum_pay_AMT > 1814836.92, 1, 0))
-"age_bin_26_and_48" ,                       
-"avg_util_0.92_to_51",
+
 corrTabler <- function(listofVars,df,comparisonVar) {
   df %>% 
-    subset(select=listofVars) %>% 
+    dplyr::select(listofVars) %>% 
     corrr::correlate() %>% 
     as_tibble() %>% 
-    select(term,comparisonVar)
+    dplyr::select(term,comparisonVar)
 }
 
 names(data)
@@ -914,52 +814,20 @@ WOEBinTable <- read_csv("../python/WOEBins.csv")
 gt(WOEBinTable)
 names(data)
 
-one_hot <- function(data, var) {
-  
-  var_enquo <- enquo(var)
-  items <- data %>% pull(!!var_enquo)
-  items_unique <- items %>% unique()
-  
-  out <- matrix(0, NROW(data), length(items_unique))
-  colnames(out) <- items_unique
-  
-  for (i in items_unique) {
-    out[, i] <- items == i
-  }
-  
-  data %>%
-    select(-!!var_enquo) %>%
-    bind_cols(as.tibble(out))
-}
-# 
-# discrete <- c("DEFAULT","SEX","EDUCATION","MARRIAGE")
-# 
-# ohe.tree.data <- subset(data, select=discrete)
+discrete <- c("SEX","EDUCATION","MARRIAGE")
 
-# EDUCATION.ohe <- one_hot(ohe.tree.data, EDUCATION)
-# EDUCATION.ohe<- EDUCATION.ohe %>% 
-#   select(-c(DEFAULT,SEX, MARRIAGE))
-# colnames(EDUCATION.ohe) <- c("2-EDUCATION","1-EDUCATION",
-#                          "3-EDUCATION","4-EDUCATION",
-#                          "0-EDUCATION")
-# marriage.ohe <- one_hot(ohe.tree.data, MARRIAGE)
-# marriage.ohe<- marriage.ohe %>% 
-#   select(-c(DEFAULT,SEX, EDUCATION))
-# colnames(marriage.ohe) <- c("1-MARRIAGE","2-MARRIAGE",
-#                             "3-MARRIAGE")
-# 
-# SEX.ohe <- one_hot(ohe.tree.data, SEX)
-# SEX.ohe<- SEX.ohe %>% 
-#   select(-c(DEFAULT,MARRIAGE, EDUCATION))
-# colnames(SEX.ohe) <- c("1-SEX","2-SEX")
-# 
-# data <- cbind(data,marriage.ohe,SEX.ohe,EDUCATION.ohe)
+data <- data %>% 
+  mutate_at(vars(discrete), factor) %>% 
+  as_tibble()
+
+dummy <- dummyVars(" ~ .", data=data)
+newdata <- as_tibble(predict(dummy, newdata = data)) 
 
 
 
-
-
-
+##############################
+# Final Dataset var selection
+##############################
 
   #####################################################################
 # visualizing differences between default with box and stripplot
